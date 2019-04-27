@@ -7,6 +7,11 @@ Resources:
       EnableDnsSupport: true
       EnableDnsHostnames: true
       CidrBlock: 10.0.1.0/24 # 10.0.1.1 - 10.0.1.254
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_Stack"
 
   Subnet:
     Type: AWS::EC2::Subnet
@@ -14,9 +19,15 @@ Resources:
       VpcId:  !Ref VPC
       CidrBlock: 10.0.1.0/25 # 10.0.1.0 - 10.0.1.127
       AvailabilityZone: us-east-1b
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_Subnet"
 
   Server1:
     Type: AWS::EC2::Instance
+    DependsOn: RouteTableForPublicSubnetRoute1
     Metadata:
       Comment: Install Salt
       AWS::CloudFormation::Init:
@@ -52,20 +63,53 @@ Resources:
           cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1
           # All done so signal success
           cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1 --exit-code $?
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_Server1"
 
-  EIP1:
+  BastionEIP:
     Type: AWS::EC2::EIP
+
+  BastionEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
     Properties:
       InstanceId: !Ref Server1
+      EIP: !Ref BastionEIP
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_InternetGateway"
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
+
+  RouteTableForPublicSubnet:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_RouteTable"
+
+  RouteTableForPublicSubnetRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTableForPublicSubnet
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
 
   SSHSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -77,6 +121,11 @@ Resources:
           FromPort: 22
           IpProtocol: tcp
           ToPort: 22
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_SSHSecurityGroup"
 
   ServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -88,3 +137,8 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_ServerSecurityGroup"
