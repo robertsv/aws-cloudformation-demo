@@ -27,9 +27,7 @@ Resources:
 
   Server1:
     Type: AWS::EC2::Instance
-    DependsOn:
-      - RouteTableForPublicSubnetRoute1
-      - BastionEIPAssociation
+    DependsOn: RouteTableForPublicSubnetRoute1
     Metadata:
       AWS::CloudFormation::Init:
         config:
@@ -40,15 +38,10 @@ Resources:
       ResourceSignal:
         Timeout: PT5M
     Properties:
-      SubnetId: !Ref Subnet
       AvailabilityZone: us-east-1b
       ImageId: ami-0a313d6098716f372
       InstanceType: t2.micro
       KeyName: white_box
-      PrivateIpAddress: 10.0.1.4
-      SecurityGroupIds:
-        - !Ref SSHSecurityGroup
-        - !Ref ServerSecurityGroup
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -86,20 +79,21 @@ Resources:
           cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1
           # All done so signal success
           cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1 --exit-code $?
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.1.4
+          Description: Primary network interface
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref SSHSecurityGroup
+            - !Ref ServerSecurityGroup
       Tags:
         - Key: "Stack"
           Value: "aws-cloudformation-with-ec2-and-saltstack"
         - Key: "Name"
           Value: "Test_Server1"
-
-  BastionEIP:
-    Type: AWS::EC2::EIP
-
-  BastionEIPAssociation:
-    Type: AWS::EC2::EIPAssociation
-    Properties:
-      InstanceId: !Ref Server1
-      EIP: !Ref BastionEIP
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
