@@ -11,13 +11,13 @@ Resources:
         - Key: "Stack"
           Value: "aws-cloudformation-with-ec2-and-saltstack"
         - Key: "Name"
-          Value: "Test_Stack"
+          Value: "Test_VPC"
 
   Subnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId:  !Ref VPC
-      CidrBlock: 10.0.1.0/25 # 10.0.1.0 - 10.0.1.127
+      CidrBlock: 10.0.1.0/25 # 10.0.1.1 - 10.0.1.127
       AvailabilityZone: us-east-1b
       Tags:
         - Key: "Stack"
@@ -27,9 +27,10 @@ Resources:
 
   Server1:
     Type: AWS::EC2::Instance
-    DependsOn: RouteTableForPublicSubnetRoute1
+    DependsOn:
+      - RouteTableForPublicSubnetRoute1
+      - BastionEIPAssociation
     Metadata:
-      Comment: Install Salt
       AWS::CloudFormation::Init:
         config:
           packages:
@@ -44,6 +45,7 @@ Resources:
       ImageId: ami-0a313d6098716f372
       InstanceType: t2.micro
       KeyName: white_box
+      PrivateIpAddress: 10.0.1.4
       SecurityGroupIds:
         - !Ref SSHSecurityGroup
         - !Ref ServerSecurityGroup
@@ -55,10 +57,31 @@ Resources:
           apt-get install python-pip -y
           # Install AWS CF helper scripts
           pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
-          # Install salt master
+          # Install salt master and minion
           curl -o bootstrap-salt.sh -L https://bootstrap.saltstack.com
-          sudo sh bootstrap-salt.sh git v2018.3.3
-          # sudo sh bootstrap-salt.sh -M -N git v2018.3.3
+          sh bootstrap-salt.sh -M -P git v2018.3.3
+          cat >> /etc/salt/master <<EOF
+          # The address of the interface to bind to:
+          interface: 10.0.1.4
+          EOF
+          cat >> /etc/salt/minion <<EOF
+          # Set the location of the salt master server. If the master server cannot be
+          # resolved, then the minion will fail to start.
+          master: 10.0.1.4
+          EOF
+          systemctl restart salt-master.service
+          while [ $(systemctl is-active salt-master.service) != "active" ]; do
+            sleep 15
+          done
+          systemctl restart salt-minion.service
+          while [ $(systemctl is-active salt-minion.service) != "active" ]; do
+            sleep 15
+          done
+          salt-key --accept-all -y
+          systemctl restart salt-minion.service
+          while [ $(systemctl is-active salt-minion.service) != "active" ]; do
+            sleep 15
+          done
           # Start cfn-init
           cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1
           # All done so signal success
@@ -102,6 +125,12 @@ Resources:
           Value: "aws-cloudformation-with-ec2-and-saltstack"
         - Key: "Name"
           Value: "Test_RouteTable"
+
+  RouteTableForPublicSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RouteTableForPublicSubnet
 
   RouteTableForPublicSubnetRoute1:
     Type: AWS::EC2::Route
