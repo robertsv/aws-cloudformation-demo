@@ -69,7 +69,7 @@ Resources:
           echo "Restart salt minion"
           systemctl restart salt-minion.service
           echo "Wait until there is unaccepted public key of salt minion"
-          while [ -z "$(ls -A  /etc/salt/pki/master/minions_pre)" ]; do
+          while [ -z "$(ls -A  /etc/salt/pki/master/minions_pre )" ]; do
           sleep 30
           done
           echo "Accept all salt minion keys"
@@ -92,7 +92,63 @@ Resources:
         - Key: "Stack"
           Value: "aws-cloudformation-with-ec2-and-saltstack"
         - Key: "Name"
-          Value: "Test_Server1"
+          Value: "Test_Server1_master"
+
+  Server2:
+    Type: AWS::EC2::Instance
+    DependsOn: RouteTableForPublicSubnetRoute1
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            apt:
+              openjdk-8-jre: []
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+    Properties:
+      AvailabilityZone: us-east-1b
+      ImageId: ami-0a313d6098716f372
+      InstanceType: t2.micro
+      KeyName: white_box
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update
+          echo "Install package manager for Python packages"
+          apt-get install python-pip -y
+          echo "Install AWS CF helper scripts"
+          pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          echo "Download salt bootstrap script"
+          curl -o bootstrap-salt.sh -L https://bootstrap.saltstack.com
+          echo "Install salt minion"
+          sh bootstrap-salt.sh -P git v2018.3.3
+          echo "Update /etc/salt/minion cfg"
+          cat >> /etc/salt/minion <<EOF
+          # Set the location of the salt master server.
+          master: 10.0.1.4
+          EOF
+          echo "Restart salt minion"
+          systemctl restart salt-minion.service
+          echo "Start cfn-init"
+          cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server2
+          echo "All done so signal success"
+          cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server2 --exit-code $?
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.1.5
+          Description: Primary network interface
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref SSHSecurityGroup
+            - !Ref ServerSecurityGroup
+      Tags:
+        - Key: "Stack"
+          Value: "aws-cloudformation-with-ec2-and-saltstack"
+        - Key: "Name"
+          Value: "Test_Server2_minion"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -159,6 +215,10 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.1.0/24
       Tags:
         - Key: "Stack"
           Value: "aws-cloudformation-with-ec2-and-saltstack"
