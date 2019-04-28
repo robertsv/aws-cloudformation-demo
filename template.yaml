@@ -46,38 +46,37 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           apt-get update
-          # Install package manager for Python packages
+          echo "Install package manager for Python packages"
           apt-get install python-pip -y
-          # Install AWS CF helper scripts
+          echo "Install AWS CF helper scripts"
           pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
-          # Install salt master and minion
+          echo "Download salt bootstrap script"
           curl -o bootstrap-salt.sh -L https://bootstrap.saltstack.com
+          echo "Install salt master and minion"
           sh bootstrap-salt.sh -M -P git v2018.3.3
+          echo "Update /etc/salt/master cfg"
           cat >> /etc/salt/master <<EOF
           # The address of the interface to bind to:
           interface: 10.0.1.4
           EOF
+          echo "Update /etc/salt/minion cfg"
           cat >> /etc/salt/minion <<EOF
-          # Set the location of the salt master server. If the master server cannot be
-          # resolved, then the minion will fail to start.
+          # Set the location of the salt master server.
           master: 10.0.1.4
           EOF
+          echo "Restart salt master"
           systemctl restart salt-master.service
-          while [ $(systemctl is-active salt-master.service) != "active" ]; do
-            sleep 15
-          done
+          echo "Restart salt minion"
           systemctl restart salt-minion.service
-          while [ $(systemctl is-active salt-minion.service) != "active" ]; do
-            sleep 15
+          echo "Wait until there is unaccepted public key of salt minion"
+          while [ -z "$(ls -A  /etc/salt/pki/master/minions_pre)" ]; do
+          sleep 30
           done
+          echo "Accept all salt minion keys"
           salt-key --accept-all -y
-          systemctl restart salt-minion.service
-          while [ $(systemctl is-active salt-minion.service) != "active" ]; do
-            sleep 15
-          done
-          # Start cfn-init
+          echo "Start cfn-init"
           cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1
-          # All done so signal success
+          echo "All done so signal success"
           cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1 --exit-code $?
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
