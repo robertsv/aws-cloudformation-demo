@@ -3,8 +3,8 @@ Metadata:
   License: 'TODO (RV): add license'
 Description: 'AWS CloudFormation sample template to demo how to:
                 * create two EC2 instances in non-default VPC
-                * use CF init (AWS::CloudFormation::Init) and UserData for instance initializqtion
-                * install salt master and minion on EC2 instance
+                * use CF init (AWS::CloudFormation::Init) and UserData for instance initialization
+                * install salt master and minion
               Following main resources are created:
                 * VPC
                 * one subnet
