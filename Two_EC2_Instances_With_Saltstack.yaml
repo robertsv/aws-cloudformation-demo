@@ -1,5 +1,20 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template with two EC2 servers, where one is salt master and other is salt minion
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: 'TODO (RV): add license'
+Description: 'AWS CloudFormation sample template to demo how to:
+                * create two EC2 instances in non-default VPC
+                * use CF init (AWS::CloudFormation::Init) and UserData for instance initializqtion
+                * install salt master and minion on EC2 instance
+              Following main resources are created:
+                * VPC
+                * one subnet
+                * internet gateway
+                * two EC2 instances'
+
+Parameters:
+  Parameter1:
+    Description: "TODO (RV): add parameters"
+    Type:        String
 
 Resources:
   VPC:
