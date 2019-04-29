@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: A sample template
+Description: A sample template with two EC2 servers, where one is salt master and other is salt minion
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -9,9 +10,9 @@ Resources:
       CidrBlock: 10.0.1.0/24 # 10.0.1.1 - 10.0.1.254
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_VPC"
+          Value: !Sub "${AWS::StackName}__VPC"
 
   Subnet:
     Type: AWS::EC2::Subnet
@@ -21,9 +22,9 @@ Resources:
       AvailabilityZone: us-east-1b
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_Subnet"
+          Value: !Sub "${AWS::StackName}__Subnet"
 
   Server1:
     Type: AWS::EC2::Instance
@@ -68,15 +69,14 @@ Resources:
           systemctl restart salt-master.service
           echo "Restart salt minion"
           systemctl restart salt-minion.service
-          echo "Wait until there is unaccepted public key of salt minion"
-          while [ -z "$(ls -A  /etc/salt/pki/master/minions_pre )" ]; do
-          sleep 30
+          echo "Wait until all public key of salt minions are accepted ..."
+          while [ $(ls -A /etc/salt/pki/master/minions | wc -l) != 2 ]; do
+            sleep 15
+            salt-key --accept-all -y
           done
-          echo "Accept all salt minion keys"
-          salt-key --accept-all -y
           echo "Start cfn-init"
           cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1
-          echo "All done so signal success"
+          echo "All done send success signal"
           cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server1 --exit-code $?
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
@@ -90,9 +90,9 @@ Resources:
             - !Ref ServerSecurityGroup
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_Server1_master"
+          Value: !Sub "${AWS::StackName}__Server1_master"
 
   Server2:
     Type: AWS::EC2::Instance
@@ -146,18 +146,18 @@ Resources:
             - !Ref ServerSecurityGroup
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_Server2_minion"
+          Value: !Sub "${AWS::StackName}__Server2_minion"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_InternetGateway"
+          Value: !Sub "${AWS::StackName}__InternetGateway"
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -171,9 +171,9 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_RouteTable"
+          Value: !Sub "${AWS::StackName}__RouteTable"
 
   RouteTableForPublicSubnetAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -201,9 +201,9 @@ Resources:
           ToPort: 22
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_SSHSecurityGroup"
+          Value: !Sub "${AWS::StackName}__SSHSecurityGroup"
 
   ServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -221,6 +221,6 @@ Resources:
           CidrIp: 10.0.1.0/24
       Tags:
         - Key: "Stack"
-          Value: "aws-cloudformation-with-ec2-and-saltstack"
+          Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: "Test_ServerSecurityGroup"
+          Value: !Sub "${AWS::StackName}__ServerSecurityGroup"
