@@ -1,7 +1,7 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Metadata:
-  License: 'TODO (RV): add license'
-Description: 'AWS CloudFormation sample template to demo how to:
+  License: "GNU GPLv3"
+Description: "AWS CloudFormation sample template to demo how to:
                 * create two EC2 instances in non-default VPC
                 * use CF init (AWS::CloudFormation::Init) and UserData for instance initialization
                 * install salt master and minion
@@ -9,12 +9,16 @@ Description: 'AWS CloudFormation sample template to demo how to:
                 * VPC
                 * one subnet
                 * internet gateway
-                * two EC2 instances'
+                * two EC2 instances"
 
 Parameters:
-  Parameter1:
-    Description: "TODO (RV): add parameters"
-    Type:        String
+  KeyName:
+    Description: EC2 ssh key
+    Type: AWS::EC2::KeyPair::KeyName
+  UbuntuAMI:
+    Description: Ubuntu AMI ID
+    Type: String
+    Default: "ami-0a313d6098716f372"
 
 Resources:
   VPC:
@@ -29,7 +33,7 @@ Resources:
         - Key: "Name"
           Value: !Sub "${AWS::StackName}__VPC"
 
-  Subnet:
+  PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId:  !Ref VPC
@@ -39,11 +43,25 @@ Resources:
         - Key: "Stack"
           Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: !Sub "${AWS::StackName}__Subnet"
+          Value: !Sub "${AWS::StackName}__PublicSubnet"
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:  !Ref VPC
+      CidrBlock: 10.0.1.128/25 # 10.0.1.128 - 10.0.1.255
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: "Stack"
+          Value: !Sub "${AWS::StackName}"
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}__PrivateSubnet"
 
   Server1:
     Type: AWS::EC2::Instance
-    DependsOn: RouteTableForPublicSubnetRoute1
+    DependsOn:
+      - RouteTableForPublicSubnetRoute1
+      - RouteTableForPrivateSubnetRoute1
     Metadata:
       AWS::CloudFormation::Init:
         config:
@@ -55,9 +73,9 @@ Resources:
         Timeout: PT5M
     Properties:
       AvailabilityZone: us-east-1b
-      ImageId: ami-0a313d6098716f372
+      ImageId: !Ref UbuntuAMI
       InstanceType: t2.micro
-      KeyName: white_box
+      KeyName: !Ref KeyName
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -96,7 +114,7 @@ Resources:
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeleteOnTermination: true
-          SubnetId: !Ref Subnet
+          SubnetId: !Ref PublicSubnet
           PrivateIpAddress: 10.0.1.4
           Description: Primary network interface
           DeviceIndex: '0'
@@ -111,7 +129,9 @@ Resources:
 
   Server2:
     Type: AWS::EC2::Instance
-    DependsOn: RouteTableForPublicSubnetRoute1
+    DependsOn:
+      - RouteTableForPublicSubnetRoute1
+      - RouteTableForPrivateSubnetRoute1
     Metadata:
       AWS::CloudFormation::Init:
         config:
@@ -123,9 +143,9 @@ Resources:
         Timeout: PT5M
     Properties:
       AvailabilityZone: us-east-1b
-      ImageId: ami-0a313d6098716f372
+      ImageId: !Ref UbuntuAMI
       InstanceType: t2.micro
-      KeyName: white_box
+      KeyName: !Ref KeyName
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -150,10 +170,10 @@ Resources:
           echo "All done so signal success"
           cfn-signal --region ${AWS::Region} --stack ${AWS::StackId} --resource Server2 --exit-code $?
       NetworkInterfaces:
-        - AssociatePublicIpAddress: true
+        - AssociatePublicIpAddress: false
           DeleteOnTermination: true
-          SubnetId: !Ref Subnet
-          PrivateIpAddress: 10.0.1.5
+          SubnetId: !Ref PrivateSubnet
+          PrivateIpAddress: 10.0.1.132
           Description: Primary network interface
           DeviceIndex: '0'
           GroupSet:
@@ -180,6 +200,21 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
 
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: ElasticIP
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - ElasticIP
+          - AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
   RouteTableForPublicSubnet:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -188,12 +223,12 @@ Resources:
         - Key: "Stack"
           Value: !Sub "${AWS::StackName}"
         - Key: "Name"
-          Value: !Sub "${AWS::StackName}__RouteTable"
+          Value: !Sub "${AWS::StackName}__RouteTableForPublicSubnet"
 
   RouteTableForPublicSubnetAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref Subnet
+      SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref RouteTableForPublicSubnet
 
   RouteTableForPublicSubnetRoute1:
@@ -203,6 +238,30 @@ Resources:
       RouteTableId: !Ref RouteTableForPublicSubnet
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
+
+  RouteTableForPrivateSubnet:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: "Stack"
+          Value: !Sub "${AWS::StackName}"
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}__RouteTableForPrivateSubnet"
+
+  RouteTableForPrivateSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref RouteTableForPrivateSubnet
+
+  RouteTableForPrivateSubnetRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: NATGateway
+    Properties:
+      RouteTableId: !Ref RouteTableForPrivateSubnet
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
 
   SSHSecurityGroup:
     Type: AWS::EC2::SecurityGroup
