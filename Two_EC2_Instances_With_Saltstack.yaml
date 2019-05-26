@@ -1,18 +1,20 @@
-# TODO: update description!
-# TODO: add export values
-# TODO: test on region other than N. Virginia
 AWSTemplateFormatVersion: 2010-09-09
 Metadata:
   License: GNU GPLv3
 Description: "AWS CloudFormation sample template to demo how to:
-                * create two EC2 instances in non-default VPC
+                * create two EC2 instances in non-default VPC, where one is in public subnet and one in private subnet
                 * use CF init (AWS::CloudFormation::Init) and UserData for instance initialization
                 * install salt master and minion
               Following main resources are created:
                 * VPC
-                * one subnet
+                * two subnets
+                * two EC2 instances
                 * internet gateway
-                * two EC2 instances"
+                * NAT gateway
+                * one EIP
+              This template is to designed to work in all regions but it requires two input parameters:
+                * EC2 ssh access key
+                * AMI ID for Ubuntu 18"
 
 Parameters:
   KeyName:
