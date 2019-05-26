@@ -3,7 +3,7 @@
 AWS CloudFormation sample template to demo how to:
 * create two EC2 instances in non-default VPC, where one is in public subnet and one in private subnet
 * use CF init (AWS::CloudFormation::Init) and UserData for instance initialization
-* install salt master and minion
+* install salt
 
 Following main resources are created:
 * VPC
