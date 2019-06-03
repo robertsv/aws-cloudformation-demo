@@ -16,4 +16,4 @@ This template is to designed to work in all regions but it requires two input pa
 * EC2 ssh access key
 * AMI ID for Ubuntu 18
 
-[![Analytics](https://ga-beacon.appspot.com/UA-54543878-3/robertsv/aws-cloudformation-with-ec2-and-saltstack)]()
+[![Analytics](https://ga-beacon.appspot.com/UA-54543878-3/robertsv/aws-cloudformation-demo)]()
