@@ -1,4 +1,4 @@
-# aws-cloudformation-with-ec2-and-saltstack
+# aws-cloudformation-demo
 
 AWS CloudFormation sample template to demo how to:
 * use CF init (AWS::CloudFormation::Init) and UserData for instance initialization (install salt and Java)
